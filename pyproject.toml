@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "wifor-platform"
+version = "0.1.0"
+description = ""
+authors = ["Henry Zehe"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+packages = [
+    { include = "wifor_db", from = "src" },
+    { include = "geo_data", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+eurostat = "^1.0.4"
+pymongo = "^4.6.1"
+jupyter = "^1.0.0"
+pandas = "^2.2.0"
+geopandas = "^0.14.2"
+sqlalchemy = "^2.0.25"
+python-dotenv = "^1.0.1"
+psycopg2 = "^2.9.9"
+
+
+[tool.poetry.group.dev.dependencies]
+pandas = "^2.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+

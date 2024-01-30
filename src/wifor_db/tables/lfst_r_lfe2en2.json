@@ -1,0 +1,44 @@
+{
+    "table_name": "LFST_R_LFE2EN2",
+    "identifier": "nace_r2",
+    "columns": [
+        {
+            "name": "freq",
+            "type": "String(255)"  
+        },
+        {
+            "name": "nace_r2",
+            "type": "String(255)" 
+        },
+        {
+            "name": "age",
+            "type": "String(255)" 
+        },
+        {
+            "name": "sex",
+            "type": "String(255)" 
+        },
+        {
+            "name": "unit",
+            "type": "String(255)"
+        },
+        {
+            "name": "nuts_id",
+            "type": "String(255)" 
+        },
+        {
+            "name": "year",
+            "type": "DateTime"
+        },
+        {
+            "name": "employment",
+            "type": "Float"
+        }
+    ],
+    "foreign_keys": [
+        {
+            "name": "nuts_id",
+            "table": "REGIONS"  
+        }
+    ]
+}

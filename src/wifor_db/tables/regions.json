@@ -1,0 +1,42 @@
+{
+    "table_name": "REGIONS",
+    "identifier": "nuts_id",
+    "columns": [
+        {
+            "name": "nuts_id",
+            "type": "String(255)"  
+        },
+        {
+            "name": "levl_code",
+            "type": "Integer" 
+        },
+        {
+            "name": "cntr_code",
+            "type": "String(255)" 
+        },
+        {
+            "name": "name_latin",
+            "type": "String(255)" 
+        },
+        {
+            "name": "nuts_name",
+            "type": "String(255)"
+        },
+        {
+            "name": "mount_type",
+            "type": "Float" 
+        },
+        {
+            "name": "urban_type",
+            "type": "Integer"
+        },
+        {
+            "name": "coast_type",
+            "type": "Integer"
+        },
+        {
+            "name": "fid",
+            "type": "String(255)"
+        }
+    ]
+}
