@@ -2,18 +2,56 @@
 import os
 import json
 from datetime import datetime, timedelta
-import logging
 import traceback
 from collections import defaultdict
 
 # Third-party imports
 import sqlalchemy
-from sqlalchemy import Column, Integer, Date, create_engine, inspect, event
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, inspect, Column, Integer, Date, event, ForeignKey
+from sqlalchemy.orm import relationship, backref, sessionmaker
+from sqlalchemy.orm import Session as _Session
 from sqlalchemy.ext.declarative import declarative_base
 
 # Local application imports
 from wifor_db import _env_cache, open_log, close_log
+
+#############################################################################################
+def update_child_with_foreign_key(session, parent_class, child_class, identifier):
+    parent_table_name = parent_class.__tablename__
+    child_table_name = child_class.__tablename__
+
+    # Adding a new column to the child class for foreign key reference
+    fk_column_name = f"{parent_table_name}_id"
+    if not hasattr(child_class, fk_column_name):
+        setattr(child_class, fk_column_name, Column(Integer, ForeignKey(f'{parent_table_name}.id')))
+
+        # Establish the relationship and backref
+        setattr(child_class, 'parent', relationship(parent_class, backref=backref('children', lazy=True)))
+
+        # Reflect the changes in the database
+        child_class.__table__.create(session.get_bind(), checkfirst=True)
+
+    # Mapping parent identifiers to their IDs
+    parent_id_map = {getattr(parent, identifier): parent.id for parent in session.query(parent_class).all()}
+
+    # Prepare data for bulk update
+    update_data = []
+    for child in session.query(child_class).all():
+        parent_id = parent_id_map.get(getattr(child, identifier))
+        if parent_id is not None:
+            update_data.append({'id': child.id, fk_column_name: parent_id})
+
+    # Perform bulk update
+    if update_data:
+        session.bulk_update_mappings(child_class, update_data)
+        session.commit()
+
+# Dynamically add the method to the SQLAlchemy Session class
+_Session.update_child_with_foreign_key = update_child_with_foreign_key
+
+#############################################################################################
+##################################Class Definition###########################################
+#############################################################################################
 
 class TABLE_CONNECTOR:
     def __init__(self):
@@ -46,20 +84,20 @@ class TABLE_CONNECTOR:
             db_url = _env_cache['SQLITE_DB_PATH']
         elif current_db == 'mysql':
             db_url = f"mysql+pymysql://{_env_cache['MYSQL_DB_USER']}:{_env_cache['MYSQL_DB_PASSWORD']}@{_env_cache['MYSQL_DB_HOST']}/{_env_cache['MYSQL_DB_NAME']}"
-        elif current_db == 'postgresql':
+        elif current_db == 'postgres':
             db_url = f"postgresql://{_env_cache['POSTGRES_DB_USER']}:{_env_cache['POSTGRES_DB_PASSWORD']}@{_env_cache['POSTGRES_DB_HOST']}:{_env_cache['POSTGRES_DB_PORT']}/{_env_cache['POSTGRES_DB_NAME']}"
         else:
             raise ValueError(f"Unsupported database type: {current_db}")
         return create_engine(db_url)
     
     @staticmethod
-    def create_session(engine):
+    def create_session(engine = create_engine_from_env()):
         if not engine:
             raise ValueError("Engine not initialized")
         Session = sessionmaker(bind=engine)
         return Session()
 
-##############################################################################################################
+#############################################################################################
     @staticmethod
     def load_class_json(self, class_name):
         json_path = os.path.join(_env_cache['CLASS_DIR'], f"{class_name}.json")
@@ -91,13 +129,14 @@ class TABLE_CONNECTOR:
                  '__table_args__': {'extend_existing': True},
                  '__unique_identifier__': json_data['identifier'],
                  '__column_names__': [column['name'] for column in json_data["columns"]],
-                 'id': Column(Integer, primary_key=True, autoincrement=True)}
+                 'id': Column(Integer, primary_key=True, autoincrement=True, nullable=False)}
         
         # Add dynamic __repr__ method
         repr_string = self.create_repr_string(self, attrs["__tablename__"], json_data['columns'])
         attrs['__repr__'] = lambda self: repr_string.format(self=self)
 
         for col in json_data['columns']:
+            self.log.info("""parse type for %s: %s""",col, col['type'])
             column_type = self.parse_type(self, col['type'])
             attrs[col['name']] = Column(column_type)
 
@@ -105,17 +144,20 @@ class TABLE_CONNECTOR:
         attrs['effective_date'] = Column(Date, default=datetime.now)
         attrs['expiry_date'] = Column(Date, default=None)
 
+        self.log.info("""
+                      Class schema created:
+                       %s""", attrs)
         return attrs
     
-########################################################################################################################
-    
+#############################################################################################
     def update_entries(self, previous_entry, new_entry):
-        """Update the expiry_date of the previous entry."""
+        """Update the expiry_date of the old entry and version number of new entry."""
         self.log.info("Update previous entry: %s and new entry: %s", previous_entry, new_entry)
         previous_entry.expiry_date = datetime.now() - timedelta(days=1)
         new_entry.version_number = previous_entry.version_number + 1
 
     def bulk_check_existing_entries(self, session, cls, new_entries):
+        """Checks if entry exist"""
         # Extract unique identifiers for all new entries
         unique_ids = [getattr(instance, cls.__unique_identifier__) for instance in new_entries]
 
@@ -129,8 +171,9 @@ class TABLE_CONNECTOR:
 
         # Return a set of instances that are duplicates
         return {instance for instance in new_entries if getattr(instance, cls.__unique_identifier__) in existing_set}
-    
+
     def bulk_check_previous_versions(self, session, cls, new_entries):
+        """Checks for previous version"""
         # Extract unique identifiers for all new entries
         unique_ids = [getattr(instance, cls.__unique_identifier__) for instance in new_entries]
 
@@ -145,38 +188,35 @@ class TABLE_CONNECTOR:
 
         return previous_versions_map
 
-    def register_before_flush_event(self, session):
-        @event.listens_for(session, "before_flush")
-        def before_flush(session, flush_context, instances):
-            self.log.info("Before flush event triggered")
-
-            new_entries_by_class = defaultdict(list)
-            for instance in session.new:
-                new_entries_by_class[type(instance)].append(instance)
-
-            for cls, new_entries in new_entries_by_class.items():
-                existing_entries = self.bulk_check_existing_entries(session, cls, new_entries)
-                previous_versions = self.bulk_check_previous_versions(session, cls, new_entries)
-
-                for instance in new_entries:
-                    if instance in existing_entries:
-                        self.log.info(f"Duplicate entry found for {instance}. It will not be added to the database.")
-                        session.expunge(instance)
-                    elif getattr(instance, cls.__unique_identifier__) in previous_versions:
-                        previous_entry = previous_versions[getattr(instance, cls.__unique_identifier__)]
-                        self.log.info(f"Previous version exists for {instance}. Updating entries.")
-                        self.update_entries(previous_entry, instance)
-
     def process_new_entries_for_class(self, session, cls, new_entries):
+        """Handles entries"""
         # Bulk check for existing entries and previous versions
         existing_entries = self.bulk_check_existing_entries(session, cls, new_entries)
         previous_versions = self.bulk_check_previous_versions(session, cls, new_entries)
 
         for instance in new_entries:
             if instance in existing_entries:
+                #self.log.info(f"Duplicate entry found for {instance}. It will not be added to the database.")
                 session.expunge(instance)
-            elif instance in previous_versions:
-                self.update_entries(previous_versions[instance], instance)
+            elif getattr(instance, cls.__unique_identifier__) in previous_versions:
+                previous_entry = previous_versions[getattr(instance, cls.__unique_identifier__)]
+                #self.log.info(f"Previous version exists for {instance}. Updating entries.")
+                self.update_entries(previous_entry, instance)
+
+    def register_before_flush_event(self, session):
+        @event.listens_for(session, "before_flush")
+        def before_flush(session, flush_context, instances):
+            #self.log.info("Before flush event triggered")
+
+            new_entries_by_class = defaultdict(list)
+            for instance in session.new:
+                new_entries_by_class[type(instance)].append(instance)
+
+            for cls, new_entries in new_entries_by_class.items():
+                # Bulk check and process entries for each class
+                self.process_new_entries_for_class(session, cls, new_entries)
+
+#############################################################################################
 
     def add_class_methods(self, cls):
         session = self.session
@@ -192,9 +232,8 @@ class TABLE_CONNECTOR:
         @classmethod
         def add_data(cls, data):
             filtered_data = data[cls.__column_names__]
-            for _, row in filtered_data.iterrows():
-                instance = cls(**row.to_dict())
-                session.add(instance)
+
+            session.bulk_insert_mappings(cls, filtered_data.to_dict(orient='records'))
             session.commit()
 
         cls.add_data = add_data
@@ -207,3 +246,5 @@ class TABLE_CONNECTOR:
         self.add_class_methods(dynamic_class)
 
         return dynamic_class
+
+#############################################################################################

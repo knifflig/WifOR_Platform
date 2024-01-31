@@ -425,3 +425,45 @@ def create_class(json_path: str):
 
     finally:
         close_logger(logger)
+
+
+# Process foreign keys if they exist
+if json_data.get('foreign_keys'):
+        attrs['__foreign_keys__'] = json_data['foreign_keys']
+        attrs = self.add_foreign_keys(attrs)
+
+def add_foreign_keys(self, attrs):
+        print(f"Adding foreign keys for table: {attrs['__tablename__']}")
+        for fk in attrs['__foreign_keys__']:
+                fk_column_name = fk['name']
+                fk_parent = fk['table']
+                fk_child = attrs['__tablename__']
+                fk_reference = f"{fk_parent}.id"
+
+                # Check if the column already exists in attrs
+                if fk_column_name in attrs:
+                # Extract the original column type
+                column_type = attrs[fk_column_name].type
+
+                self.log.info("Add Foreign key to existing column '%s' referencing ''%s'",fk_column_name , fk_reference)
+
+                # Define the column with the ForeignKey
+                attrs[f"{fk['table']}_id"] = Column(Integer, ForeignKey(f"{fk['table']}.id"))
+                
+                else:
+                raise ValueError(f"Column {fk_column_name} not found in attrs for table {fk_child}. Foreign key cannot be added.")
+
+                # Dynamically open the parent table to establish the relationship
+                parent_class = self.open_table(fk_parent)
+
+                # Add a relationship for the foreign key
+                relationship_name = f"ref_{fk_child}_{fk_parent}"
+                backref_name = f"backref_{fk_parent}_{fk_child}"
+                self.log.info("Add relationship '%s' between %s and %s",relationship_name , fk_child, fk_parent)
+                attrs[relationship_name] = relationship(
+                parent_class,
+                backref=backref(backref_name, lazy='dynamic')
+                )
+
+        return attrs
+

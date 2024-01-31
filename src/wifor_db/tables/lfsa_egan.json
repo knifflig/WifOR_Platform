@@ -1,5 +1,5 @@
 {
-    "table_name": "LFST_R_LFE2EN2",
+    "table_name": "LFSA_EGAN",
     "identifier": "nuts_id",
     "columns": [
         {
@@ -7,11 +7,7 @@
             "type": "String(255)"  
         },
         {
-            "name": "nace_r2",
-            "type": "String(255)" 
-        },
-        {
-            "name": "age",
+            "name": "unit",
             "type": "String(255)" 
         },
         {
@@ -19,7 +15,11 @@
             "type": "String(255)" 
         },
         {
-            "name": "unit",
+            "name": "age",
+            "type": "String(255)" 
+        },
+        {
+            "name": "citizen",
             "type": "String(255)"
         },
         {

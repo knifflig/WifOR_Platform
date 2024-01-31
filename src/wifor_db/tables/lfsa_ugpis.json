@@ -1,5 +1,5 @@
 {
-    "table_name": "LFST_R_LFE2EN2",
+    "table_name": "LFSA_UGPIS",
     "identifier": "nuts_id",
     "columns": [
         {
@@ -7,11 +7,7 @@
             "type": "String(255)"  
         },
         {
-            "name": "nace_r2",
-            "type": "String(255)" 
-        },
-        {
-            "name": "age",
+            "name": "unit",
             "type": "String(255)" 
         },
         {
@@ -19,7 +15,7 @@
             "type": "String(255)" 
         },
         {
-            "name": "unit",
+            "name": "isco08",
             "type": "String(255)"
         },
         {
@@ -31,7 +27,7 @@
             "type": "DateTime"
         },
         {
-            "name": "employed",
+            "name": "unemployed",
             "type": "Float"
         }
     ],

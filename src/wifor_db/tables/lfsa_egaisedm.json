@@ -1,5 +1,5 @@
 {
-    "table_name": "LFST_R_LFE2EN2",
+    "table_name": "LFSA_EGAISEDM",
     "identifier": "nuts_id",
     "columns": [
         {
@@ -7,12 +7,20 @@
             "type": "String(255)"  
         },
         {
-            "name": "nace_r2",
+            "name": "isced11",
+            "type": "String(255)" 
+        },
+        {
+            "name": "isco08",
+            "type": "String(255)" 
+        },
+        {
+            "name": "mgstatus",
             "type": "String(255)" 
         },
         {
             "name": "age",
-            "type": "String(255)" 
+            "type": "String(255)"
         },
         {
             "name": "sex",
@@ -24,7 +32,7 @@
         },
         {
             "name": "nuts_id",
-            "type": "String(255)" 
+            "type": "String(255)"
         },
         {
             "name": "year",
